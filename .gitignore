@@ -1,0 +1,6 @@
+/dist
+/venv
+*.log
+*.bat
+*.exe
+*.pfx
