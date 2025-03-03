@@ -6,6 +6,7 @@ def log_uncaught_exceptions(exctype, value, tb):
 sys.excepthook = log_uncaught_exceptions
 
 STEAMDL_API = "https://api.steamdl.ir/ea"
+VERSION = "0.1.1"
 
 MEMORY_PATTERN = br"authorization=Bearer ([a-zA-Z0-9=\._\-]{1,10000})"
 GRAPHQL_QUERY = '''
@@ -71,7 +72,7 @@ class EA_Downloader:
                 "Accept": "application/json",
             },
             json={"query": GRAPHQL_QUERY},
-            timeout=15,
+            timeout=60,
         )
         try:
             data = response.json()["data"]["me"]
@@ -136,6 +137,8 @@ class EA_Downloader:
             webbrowser.open(download_url, new=0, autoraise=False)
 
 if __name__ == "__main__":
+    print(f"EA Downloader by SteamDL.ir - v{VERSION}")
+    
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s %(levelname)s %(message)s',
