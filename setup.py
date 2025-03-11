@@ -8,7 +8,7 @@ build_exe_options = {
 
 setup(
     name = "EA App Downloader",
-    version = "0.2.0",
+    version = "0.2.1",
     options = {"build_exe": build_exe_options},
     executables = [Executable("main.py",target_name="EA_App_Downloader", icon="steamdl.ico",uac_admin=False, base = "console"),
     ]

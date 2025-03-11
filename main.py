@@ -6,7 +6,7 @@ def log_uncaught_exceptions(exctype, value, tb):
 sys.excepthook = log_uncaught_exceptions
 
 STEAMDL_API = "https://api.steamdl.ir/ea"
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 
 MEMORY_PATTERN = br"authorization=Bearer ([a-zA-Z0-9=\._\-]{1,10000})"
 DEFAULT_VERSION = "13.128.0.5641"
@@ -106,7 +106,8 @@ class EA_Downloader:
                 url=download_url,
                 file_path="downloads",
                 multisegment=True,
-                segments=4,
+                segments=2000,
+                retries=5,
                 display=True,
                 clear_terminal=False,
                 block=True
