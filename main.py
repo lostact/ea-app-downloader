@@ -6,7 +6,7 @@ def log_uncaught_exceptions(exctype, value, tb):
 sys.excepthook = log_uncaught_exceptions
 
 STEAMDL_API = "https://api.steamdl.ir/ea"
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 
 MEMORY_PATTERN = br"authorization=Bearer ([a-zA-Z0-9=\._\-]{1,10000})"
 DEFAULT_VERSION = "13.128.0.5641"
