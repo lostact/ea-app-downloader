@@ -1,4 +1,4 @@
-import requests, re, os, sys, pymem, logging
+import requests, re, os, sys, pymem, logging, subprocess, json, zipfile, time
 
 # log uncaught exceptions
 def log_uncaught_exceptions(exctype, value, tb):
@@ -6,12 +6,29 @@ def log_uncaught_exceptions(exctype, value, tb):
 sys.excepthook = log_uncaught_exceptions
 
 STEAMDL_API = "https://api.steamdl.ir/ea"
-VERSION = "0.2.1"
+VERSION = "0.3.0"
 
 MEMORY_PATTERN = br"authorization=Bearer ([a-zA-Z0-9=\._\-]{1,10000})"
 DEFAULT_VERSION = "13.128.0.5641"
-EA_LOG_PATH = r"%LocalAppData%\Electronic Arts\EA Desktop\Logs\EALauncher.log"
+LAUNCHER_LOG_PATH = os.path.expandvars(r"%LocalAppData%\Electronic Arts\EA Desktop\Logs\EALauncher.log")
+APP_LOG_PATH = os.path.expandvars(r"%LocalAppData%\Electronic Arts\EA Desktop\Logs\EADesktop.log")
 VERSION_PATTERN = r"\(eax::apps::utils::logAppInfo\)\s+Version:\s+(\d+\.\d+\.\d+[\-\.]\d+)"
+
+def follow(file):
+    '''generator function that yields new lines in a file
+    '''
+    # seek the end of the file
+    file.seek(0, os.SEEK_END)
+    
+    # start infinite loop
+    while True:
+        # read last line of file
+        line = file.read()        # sleep if file hasn't been updated
+        if not line:
+            time.sleep(1)
+            continue
+
+        yield line
 
 class EA_Downloader:
     def __init__(self):
@@ -21,7 +38,7 @@ class EA_Downloader:
     def load_version(self):
         version = DEFAULT_VERSION
         try:
-            with open(os.path.expandvars(EA_LOG_PATH), encoding="utf-8") as f:
+            with open(EA_LOG_PATH, encoding="utf-8") as f:
                 for line in f:
                     m = re.search(VERSION_PATTERN, line)
                     if m is None:
@@ -84,35 +101,31 @@ class EA_Downloader:
             choice_number = index + 1
             print(f"{choice_number}. {app['name']}")
 
-    def download_app(self, app_index):
-        app = self._owned_apps[app_index]
+    def download_app(self, product_id):
         response = requests.post(
             f"{STEAMDL_API}/get_download_link",
-            json = {"user_id": self._user_id, "access_token": self._access_token, "product_id": app['product_id']}
+            json = {"user_id": self._user_id, "access_token": self._access_token, "product_id": product_id}
         )
         data = response.json()
         if data['success']:
             download_url = data["download_url"]
             print(f"\nGot download link: {download_url}")
             # webbrowser.open(download_url, new=0, autoraise=False)
-            
-            from pypdl import Pypdl
+        
+        if not os.path.isdir("downloads"):
+            os.makedirs("downloads")
 
-            if not os.path.exists("downloads"):
-                os.makedirs("downloads")
+        match = re.search(r"\/([^?/]+)\?", download_url)
+        file_path = "downloads/" + match.group(1)
 
-            dl = Pypdl(allow_reuse=False, max_concurrent=4)
-            result = dl.start(
-                url=download_url,
-                file_path="downloads",
-                multisegment=True,
-                segments=2000,
-                retries=5,
-                display=True,
-                clear_terminal=False,
-                block=True
-            )
-            return result
+        download_url_final = download_url.replace("http://", "http://dl.steamdl.ir/steamdl_domain/")
+        subprocess.Popen(["wget.exe","-t", "0", "-c", "-O", file_path, download_url_final], shell=True)
+
+        return file_path
+
+    def download_choice(self, app_index):
+        app = self._owned_apps[app_index]
+        download_app(app['product_id'])
 
 
 if __name__ == "__main__":
@@ -133,25 +146,22 @@ if __name__ == "__main__":
         print("Connecting to EA...")
         success = ea_downloader.get_user_id()
         if success:
-            print("Getting games list...")
-            app_count = ea_downloader.get_owned_apps()
-            if app_count > 0:
-                exit = False
-                while not exit:
-                    ea_downloader.print_apps()
-                    choice = input("\nEnter a number to download or 0 to exit. ")
-                    if not choice.isdigit():
-                        print("Invalid choice.")
-                        continue
-                    choice_number = int(choice)
-                    if choice_number > app_count:
-                        print("Invalid number.")
-                        continue
-                    if choice_number != 0:
-                        ea_downloader.download_app(choice_number - 1)
-                        if result:
-                            print("File downloaded to downloads folder.")
-                    else:
-                        exit = True
-
-    # input("Press enter to exit.")
+            print("Waiting for game install...")
+            logfile = open(APP_LOG_PATH, "r")
+            log_follower = follow(logfile)
+            for new_lines in log_follower:
+                match = re.search(r"GamesManagerProxy::initiateDownload\)\s+inputParams=\[({[^}]+})", new_lines)
+                if match:
+                    data = json.loads(match.group(1))
+                    game_name = data['slug'].replace("-", " ").title()
+                    choice = input(f"Detected {game_name} installation, enter y to start download: ")
+                    if choice.strip().lower() == "y":
+                        file_path = ea_downloader.download_app(data["offerId"])
+                        if file_path:
+                            choice = input(f"\nDownloading {game_name} completed, enter y to extract: ")
+                            if choice.strip().lower() == "y":
+                                install_path = data["installPath"]
+                                with zipfile.ZipFile(file_path, 'r') as zip_file:
+                                    zip_file.extractall(install_path)
+                                print("Extract completed, Enjoy!")
+                            # break

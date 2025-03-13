@@ -2,5 +2,6 @@
 /venv
 *.log
 *.bat
-*.exe
 *.pfx
+7z.exe
+signtool.exe
